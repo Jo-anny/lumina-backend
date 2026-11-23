@@ -10,6 +10,7 @@ import {
   getTransactions,
   getTransactionsByLedger,
   getOperations,
+  getAccountOperations,
   getLedgers,
   getAccounts,
   getAccountSigners,
@@ -273,6 +274,20 @@ test('SQL snapshot: getAccounts address order default', async () => {
   await getAccounts(pool, { network: 'mainnet', limit: 20, orderBy: 'ADDRESS' });
   const q = getLastQuery();
   verifySqlSnapshot('getAccounts_address_default', q.sql, q.params);
+});
+
+// ─── Account Operations SQL Snapshots (#449) ─────────────────────────────────
+
+test('SQL snapshot: getAccountOperations default query', async () => {
+  const { pool, getLastQuery } = fakePool();
+  const address = 'GBRPYHIL2CI537KXVHBV4Z6G7MXNGSQXN4F2XGJFFHJ3KJV3J4WKZQLQ';
+  await getAccountOperations(pool, 'mainnet', address, 20);
+  const q = getLastQuery();
+  assert.deepEqual(q.params, [address, 'mainnet', 20]);
+  assert.doesNotMatch(q.sql, /mainnet|GBRPYHIL|20/);
+  assert.match(q.sql, /\bsource_account = \$1 AND network = \$2\b/);
+  assert.doesNotMatch(q.sql, /\bOFFSET\b/i);
+  verifySqlSnapshot('getAccountOperations_default', q.sql, q.params);
 });
 
 // ─── Account Signers SQL Snapshots (#454) ────────────────────────────────────
