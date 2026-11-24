@@ -5,13 +5,16 @@ import { join } from 'node:path';
 import type { Pool } from 'pg';
 import {
   getAccountOperationsInLedger,
+  getAccountLifecycle,
   getTableCountEstimateOrExact,
   getTradesFromDb,
   getTransactions,
+  getTransactionByHash,
   getTransactionsByLedger,
   getOperations,
   getAccountOperations,
   getLedgers,
+  getLatestLedgerFromDb,
   getAccounts,
   getAccountSigners,
   getSponsoredAccounts,
@@ -162,6 +165,19 @@ test('SQL snapshot: getTransactions ascending order', async () => {
   verifySqlSnapshot('getTransactions_ascending', q.sql, q.params);
 });
 
+// ─── Transaction By Hash SQL Snapshots ───────────────────────────────────────
+
+test('SQL snapshot: getTransactionByHash', async () => {
+  const { pool, getLastQuery } = fakePool();
+  await getTransactionByHash(pool, 'mainnet', 'abc123hash');
+  const q = getLastQuery();
+  assert.match(q.sql, /hash = \$1 AND network = \$2/);
+  assert.doesNotMatch(q.sql, /abc123hash|mainnet/);
+  assert.doesNotMatch(q.sql, /\bOFFSET\b/i);
+  assert.deepEqual(q.params, ['abc123hash', 'mainnet']);
+  verifySqlSnapshot('getTransactionByHash_default', q.sql, q.params);
+});
+
 // ─── Operations SQL Snapshots ────────────────────────────────────────────────
 
 test('SQL snapshot: getOperations default query', async () => {
@@ -230,6 +246,20 @@ test('SQL snapshot: getLedgers paginated backward', async () => {
   await getLedgers(pool, 'mainnet', 20, cursor, 'BACKWARD');
   const q = getLastQuery();
   verifySqlSnapshot('getLedgers_backward', q.sql, q.params);
+});
+
+test('SQL snapshot: getLatestLedgerFromDb representative arguments', async () => {
+  const { pool, getLastQuery } = fakePool();
+  await getLatestLedgerFromDb(pool, 'mainnet');
+  const q = getLastQuery();
+
+  assert.deepEqual(q.params, ['mainnet']);
+  assert.match(q.sql, /FROM ledgers WHERE network = \$1/);
+  assert.doesNotMatch(q.sql, /mainnet/i);
+  assert.doesNotMatch(q.sql, /\bOFFSET\b/i);
+  assert.match(q.sql, /\bORDER BY sequence DESC LIMIT 1\b/);
+
+  verifySqlSnapshot('getLatestLedgerFromDb_representative', q.sql, q.params);
 });
 
 // ─── Accounts SQL Snapshots ──────────────────────────────────────────────────
